@@ -9,4 +9,5 @@
                   kernel,
                   stdlib
                  ]},
-  {env, []}]}.
+  {env, [{carbon_host, "localhost"},
+         {carbon_port, 2003}]}]}.
