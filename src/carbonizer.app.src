@@ -1,0 +1,12 @@
+{application, carbonizer,
+ [{description, "Push data to Carbon/Graphite"},
+  {vsn, git},
+  {modules, [
+             carbonizer
+            ]},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}]}.
