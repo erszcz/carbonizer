@@ -35,8 +35,8 @@
 %%
 
 start() ->
-    Host = application:get_env(carbon_host, ?MODULE, "localhost"),
-    Port = application:get_env(carbon_port, ?MODULE, 2003),
+    Host = application:get_env(?MODULE, carbon_host, "localhost"),
+    Port = application:get_env(?MODULE, carbon_port, 2003),
     start(Host, Port).
 
 start(Host, Port) ->
