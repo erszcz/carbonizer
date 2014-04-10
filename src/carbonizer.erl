@@ -59,7 +59,12 @@ start_link(Host, UDPPort) ->
     gen_server:start_link(?MODULE, [Host, UDPPort], []).
 
 start_link(Host, UDPPort, Opts) ->
-    gen_server:start_link(?MODULE, [Host, UDPPort | Opts], []).
+    case lists:keyfind(register, 1, Opts) of
+        false ->
+            gen_server:start_link(?MODULE, [Host, UDPPort | Opts], []);
+        {register, RegName} ->
+            gen_server:start_link(RegName, ?MODULE, [Host, UDPPort | Opts], [])
+    end.
 
 send(Pid, #carbon_sample{} = Sample) ->
     gen_server:cast(Pid, Sample).
