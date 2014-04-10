@@ -41,8 +41,10 @@ end_per_testcase(CaseName, _Config)
        CaseName =:= send_batch_to_carbon_test;
        CaseName =:= flush_incomplete_batch_test ->
     meck:unload(gen_udp),
+    stopdown(),
     ok;
 end_per_testcase(_CaseName, _Config) ->
+    stopdown(),
     ok.
 
 %%
@@ -98,8 +100,13 @@ startup() ->
     startup([]).
 
 startup(Opts) ->
-    {ok, Pid} = carbonizer:start_link({10,100,0,70}, 2003, Opts),
+    {ok, Pid} = carbonizer:start({10,100,0,70}, 2003, Opts),
     Pid.
+
+stopdown() ->
+    MRef = erlang:monitor(process, carbonizer),
+    carbonizer:stop(),
+    receive {'DOWN', MRef, process, {carbonizer, _}, _} -> ok end.
 
 is_running() ->
     Pid = erlang:whereis(carbonizer),
@@ -114,4 +121,4 @@ timestamp_add({Mega1, Secs1, Mili1}, {Mega2, Secs2, Mili2}) ->
     {Mega1 + Mega2, Secs1 + Secs2, Mili1 + Mili2}.
 
 send_to_carbon(Metric, Value, TS) ->
-    carbonizer:send_to_carbon(sample(Metric, Value, TS)).
+    carbonizer:send(sample(Metric, Value, TS)).

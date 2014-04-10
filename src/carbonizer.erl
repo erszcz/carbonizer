@@ -6,10 +6,14 @@
 
 -define(INFO(Fmt, Args), error_logger:info_msg(Fmt, Args)).
 
-%% API
--export([start/0, start/2,
-         start_link/2, start_link/3,
-         send_to_carbon/1]).
+%% Named process API
+-export([start/0, start/2, start/3,
+         stop/0,
+         send/1]).
+
+%% Anonymous process API
+-export([start_link/2, start_link/3,
+         send/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -23,26 +27,38 @@
 -define(state, carbonizer_state).
 
 %%
-%% API
+%% Standalone process API
 %%
 
 start() ->
-    Host = application:getenv(carbon_host, ?MODULE, "localhost"),
-    Port = application:getenv(carbon_port, ?MODULE, 2003),
+    Host = application:get_env(carbon_host, ?MODULE, "localhost"),
+    Port = application:get_env(carbon_port, ?MODULE, 2003),
     start(Host, Port).
 
 start(Host, Port) ->
     gen_server:start({local, ?SERVER}, ?MODULE, [Host, Port], []).
 
+start(Host, Port, Opts) ->
+    gen_server:start({local, ?SERVER}, ?MODULE, [Host, Port | Opts], []).
+
+stop() ->
+    gen_server:cast(?SERVER, stop).
+
+send(#carbon_sample{} = Sample) ->
+    gen_server:cast(?SERVER, Sample).
+
+%%
+%% Anonymous process API
+%%
+
 start_link(Host, UDPPort) ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [Host, UDPPort], []).
+    gen_server:start_link(?MODULE, [Host, UDPPort], []).
 
 start_link(Host, UDPPort, Opts) ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE,
-                          [Host, UDPPort | Opts], []).
+    gen_server:start_link(?MODULE, [Host, UDPPort | Opts], []).
 
-send_to_carbon(#carbon_sample{} = Sample) ->
-    gen_server:cast(?SERVER, Sample).
+send(Pid, #carbon_sample{} = Sample) ->
+    gen_server:cast(Pid, Sample).
 
 %%
 %% gen_server callbacks
@@ -69,14 +85,21 @@ handle_call(Request, From, #?state{} = S) ->
     {reply, Reply, S, timeout(S)}.
 
 handle_cast(#carbon_sample{} = Sample, #?state{} = S) ->
-    case handle_cast_sample(Sample, S) of
+    case handle_sample(Sample, S) of
         {ok, NewS} -> {noreply, NewS, timeout(S)};
         {error, _} = ER -> {stop, ER, S}
     end;
+handle_cast(stop, #?state{} = S) ->
+    {stop, normal, S};
 handle_cast(Msg, #?state{} = S) ->
     ?INFO("unexpected cast: ~p~n", [Msg]),
     {noreply, S, timeout(S)}.
 
+handle_info(#carbon_sample{} = Sample, #?state{} = S) ->
+    case handle_sample(Sample, S) of
+        {ok, NewS} -> {noreply, NewS, timeout(S)};
+        {error, _} = ER -> {stop, ER, S}
+    end;
 handle_info(timeout, #?state{} = S) ->
     case send_batch(S) of
         {ok, NewS} -> {noreply, NewS, timeout(S)};
