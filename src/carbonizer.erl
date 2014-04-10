@@ -7,7 +7,8 @@
 -define(INFO(Fmt, Args), error_logger:info_msg(Fmt, Args)).
 
 %% API
--export([start_link/2, start_link/3,
+-export([start/0, start/2,
+         start_link/2, start_link/3,
          send_to_carbon/1]).
 
 %% gen_server callbacks
@@ -24,6 +25,14 @@
 %%
 %% API
 %%
+
+start() ->
+    Host = application:getenv(carbon_host, ?MODULE, "localhost"),
+    Port = application:getenv(carbon_port, ?MODULE, 2003),
+    start(Host, Port).
+
+start(Host, Port) ->
+    gen_server:start({local, ?SERVER}, ?MODULE, [Host, Port], []).
 
 start_link(Host, UDPPort) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [Host, UDPPort], []).
