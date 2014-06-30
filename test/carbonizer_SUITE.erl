@@ -19,7 +19,8 @@ tests() ->
     [startup_test,
      send_to_carbon_test,
      send_batch_to_carbon_test,
-     flush_incomplete_batch_test].
+     flush_incomplete_batch_test,
+     send_count_is_ok].
 
 init_per_testcase(CaseName, Config)
   when CaseName =:= send_to_carbon_test;
@@ -92,6 +93,21 @@ flush_incomplete_batch_test(_) ->
     receive {meck_fake_udp_send, _} -> ok end,
     ?ae(1, meck:num_calls(gen_udp, send, '_')).
 
+send_count_is_ok(_) ->
+    dbg:tracer(),
+    dbg:tpl(udp_listener, x),
+    dbg:p(all, call),
+    ExpectedNDatagrams = 1113,
+    {Pid, Port} = start_udp_listener(8899, ExpectedNDatagrams),
+    startup({127,0,0,1}, Port, [{flush_freq, 700}, {flush_time, 1}]),
+    ?a(is_running()),
+    StartAt = timestamp_add(os:timestamp(), {0, -ExpectedNDatagrams, 0}),
+    [send_to_carbon("foo.counted", I, timestamp_add(StartAt, {0,I,0}))
+     || I <- lists:seq(1, ExpectedNDatagrams)],
+    ?a(udp_listener:is_valid(Pid)),
+    stop_udp_listener(Pid).
+
+
 %%
 %% Helpers
 %%
@@ -100,7 +116,10 @@ startup() ->
     startup([]).
 
 startup(Opts) ->
-    {ok, Pid} = carbonizer:start({10,100,0,70}, 2003, Opts),
+    startup({127,0,0,1}, 8899, Opts).
+
+startup(Addr, Port, Opts) ->
+    {ok, Pid} = carbonizer:start(Addr, Port, Opts),
     Pid.
 
 stopdown() ->
@@ -122,3 +141,10 @@ timestamp_add({Mega1, Secs1, Mili1}, {Mega2, Secs2, Mili2}) ->
 
 send_to_carbon(Metric, Value, TS) ->
     carbonizer:send(sample(Metric, Value, TS)).
+
+start_udp_listener(Port, ExpectedNDatagrams) ->
+    Pid = udp_listener:start(Port, ExpectedNDatagrams),
+    {Pid, Port}.
+
+stop_udp_listener(Pid) ->
+    Pid ! stop.
